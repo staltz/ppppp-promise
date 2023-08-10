@@ -83,7 +83,7 @@ test('accountAdd()', async (t) => {
   const contentsBefore = fs.readFileSync(file, 'utf-8')
   assert.strictEqual(contentsBefore, JSON.stringify([[token, promise]]))
 
-  const dbBefore = [...local.db.msgs()].map(({data}) => data)
+  const dbBefore = [...local.db.msgs()].map(({ data }) => data)
   assert.equal(dbBefore.length, 1)
   assert.equal(dbBefore[0].action, 'add')
   assert.equal(dbBefore[0].add.key.algorithm, 'ed25519')
@@ -103,7 +103,7 @@ test('accountAdd()', async (t) => {
   })
   assert.strictEqual(result1, true)
 
-  const dbAfter = [...local.db.msgs()].map(({data}) => data)
+  const dbAfter = [...local.db.msgs()].map(({ data }) => data)
   assert.equal(dbAfter.length, 2)
   assert.equal(dbAfter[0].action, 'add')
   assert.equal(dbAfter[0].add.key.algorithm, 'ed25519')
