@@ -67,16 +67,16 @@ test('follow()', async (t) => {
   await p(local.close)()
 })
 
-test('identityAdd()', async (t) => {
+test('accountAdd()', async (t) => {
   const { local, path, keypair } = setup()
 
-  assert.rejects(() => p(local.promise.identityAdd)('randomnottoken', {}))
+  assert.rejects(() => p(local.promise.accountAdd)('randomnottoken', {}))
 
-  const identity = await p(local.db.identity.findOrCreate)({
+  const account = await p(local.db.account.findOrCreate)({
     domain: 'account',
   })
 
-  const promise = { type: 'identity-add', identity }
+  const promise = { type: 'account-add', account }
   const token = await p(local.promise.create)(promise)
 
   const file = Path.join(path, 'promises.json')
@@ -92,8 +92,8 @@ test('identityAdd()', async (t) => {
   assert(dbBefore[0].add.nonce)
 
   const keypair2 = Keypair.generate('ed25519', 'bob')
-  const consent = local.db.identity.consent({ identity, keypair: keypair2 })
-  const result1 = await p(local.promise.identityAdd)(token, {
+  const consent = local.db.account.consent({ account, keypair: keypair2 })
+  const result1 = await p(local.promise.accountAdd)(token, {
     key: {
       purpose: 'sig',
       algorithm: 'ed25519',
@@ -119,7 +119,7 @@ test('identityAdd()', async (t) => {
   const contentsAfter = fs.readFileSync(file, 'utf-8')
   assert.strictEqual(contentsAfter, '[]')
 
-  assert.rejects(() => p(local.promise.identityAdd)(token, {}))
+  assert.rejects(() => p(local.promise.accountAdd)(token, {}))
 
   await p(local.close)()
 })
