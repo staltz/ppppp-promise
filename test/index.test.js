@@ -8,28 +8,33 @@ const rimraf = require('rimraf')
 const Keypair = require('ppppp-keypair')
 const caps = require('ppppp-caps')
 
-function setup() {
+async function setup() {
   setup.counter ??= 0
   setup.counter += 1
   const path = Path.join(os.tmpdir(), 'ppppp-promise-' + setup.counter)
   rimraf.sync(path)
   const keypair = Keypair.generate('ed25519', 'alice')
 
-  const local = require('secret-stack/bare')({ caps })
+  const local = require('secret-stack/bare')()
     .use(require('secret-stack/plugins/net'))
     .use(require('secret-handshake-ext/secret-stack'))
     .use(require('ppppp-db'))
     .use(require('../lib'))
     .call(null, {
-      path,
-      keypair,
+      shse: { caps },
+      global: {
+        path,
+        keypair,
+      },
     })
+
+  await local.db.loaded()
 
   return { local, path, keypair }
 }
 
 test('create()', async (t) => {
-  const { local, path } = setup()
+  const { local, path } = await setup()
 
   const promise = { type: 'follow' }
   const token = await p(local.promise.create)(promise)
@@ -45,9 +50,9 @@ test('create()', async (t) => {
 })
 
 test('follow()', async (t) => {
-  const { local, path } = setup()
+  const { local, path } = await setup()
 
-  assert.rejects(() => p(local.promise.follow)('randomnottoken', 'MY_ID'))
+  assert.rejects(() => p(local.promise.follow)('randomnottoken', 'FRIEND_ID'))
 
   const promise = { type: 'follow' }
   const token = await p(local.promise.create)(promise)
@@ -56,24 +61,24 @@ test('follow()', async (t) => {
   const contentsBefore = fs.readFileSync(file, 'utf-8')
   assert.strictEqual(contentsBefore, JSON.stringify([[token, promise]]))
 
-  const result1 = await p(local.promise.follow)(token, 'MY_ID')
+  const result1 = await p(local.promise.follow)(token, 'FRIEND_ID')
   assert.strictEqual(result1, true)
 
   const contentsAfter = fs.readFileSync(file, 'utf-8')
   assert.strictEqual(contentsAfter, '[]')
 
-  assert.rejects(() => p(local.promise.follow)(token, 'MY_ID'))
+  assert.rejects(() => p(local.promise.follow)(token, 'FRIEND_ID'))
 
   await p(local.close)()
 })
 
 test('accountAdd()', async (t) => {
-  const { local, path, keypair } = setup()
+  const { local, path, keypair } = await setup()
 
   assert.rejects(() => p(local.promise.accountAdd)('randomnottoken', {}))
 
   const account = await p(local.db.account.findOrCreate)({
-    domain: 'account',
+    subdomain: 'account',
   })
 
   const promise = { type: 'account-add', account }
@@ -86,10 +91,10 @@ test('accountAdd()', async (t) => {
   const dbBefore = [...local.db.msgs()].map(({ data }) => data)
   assert.equal(dbBefore.length, 1)
   assert.equal(dbBefore[0].action, 'add')
-  assert.equal(dbBefore[0].add.key.algorithm, 'ed25519')
-  assert.equal(dbBefore[0].add.key.bytes, keypair.public)
-  assert.equal(dbBefore[0].add.key.purpose, 'sig')
-  assert(dbBefore[0].add.nonce)
+  assert.equal(dbBefore[0].key.algorithm, 'ed25519')
+  assert.equal(dbBefore[0].key.bytes, keypair.public)
+  assert.equal(dbBefore[0].key.purpose, 'shs-and-sig')
+  assert(dbBefore[0].nonce)
 
   const keypair2 = Keypair.generate('ed25519', 'bob')
   const consent = local.db.account.consent({ account, keypair: keypair2 })
@@ -106,15 +111,15 @@ test('accountAdd()', async (t) => {
   const dbAfter = [...local.db.msgs()].map(({ data }) => data)
   assert.equal(dbAfter.length, 2)
   assert.equal(dbAfter[0].action, 'add')
-  assert.equal(dbAfter[0].add.key.algorithm, 'ed25519')
-  assert.equal(dbAfter[0].add.key.bytes, keypair.public)
-  assert.equal(dbAfter[0].add.key.purpose, 'sig')
-  assert(dbAfter[0].add.nonce)
+  assert.equal(dbAfter[0].key.algorithm, 'ed25519')
+  assert.equal(dbAfter[0].key.bytes, keypair.public)
+  assert.equal(dbAfter[0].key.purpose, 'shs-and-sig')
+  assert(dbAfter[0].nonce)
   assert.equal(dbAfter[1].action, 'add')
-  assert.equal(dbAfter[1].add.key.algorithm, 'ed25519')
-  assert.equal(dbAfter[1].add.key.bytes, keypair2.public)
-  assert.equal(dbAfter[1].add.key.purpose, 'sig')
-  assert(dbAfter[1].add.consent)
+  assert.equal(dbAfter[1].key.algorithm, 'ed25519')
+  assert.equal(dbAfter[1].key.bytes, keypair2.public)
+  assert.equal(dbAfter[1].key.purpose, 'sig')
+  assert(dbAfter[1].consent)
 
   const contentsAfter = fs.readFileSync(file, 'utf-8')
   assert.strictEqual(contentsAfter, '[]')
@@ -125,7 +130,7 @@ test('accountAdd()', async (t) => {
 })
 
 test('revoke()', async (t) => {
-  const { local, path } = setup()
+  const { local, path } = await setup()
 
   const promise = { type: 'follow' }
   const token = await p(local.promise.create)(promise)
