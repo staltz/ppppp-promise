@@ -19,6 +19,7 @@ async function setup() {
     .use(require('secret-stack/plugins/net'))
     .use(require('secret-handshake-ext/secret-stack'))
     .use(require('ppppp-db'))
+    .use(require('ppppp-set'))
     .use(require('../lib'))
     .call(null, {
       shse: { caps },
@@ -36,7 +37,11 @@ async function setup() {
 test('create()', async (t) => {
   const { local, path } = await setup()
 
-  const promise = { type: 'follow' }
+  const account = await p(local.db.account.findOrCreate)({
+    subdomain: 'account',
+  })
+
+  const promise = { type: 'follow', account }
   const token = await p(local.promise.create)(promise)
   assert.strictEqual(typeof token, 'string')
   assert.ok(token.length > 42)
@@ -54,15 +59,24 @@ test('follow()', async (t) => {
 
   assert.rejects(() => p(local.promise.follow)('randomnottoken', 'FRIEND_ID'))
 
-  const promise = { type: 'follow' }
+  const account = await p(local.db.account.findOrCreate)({
+    subdomain: 'account',
+  })
+  await p(local.set.load)(account)
+
+  const promise = { type: 'follow', account }
   const token = await p(local.promise.create)(promise)
 
   const file = Path.join(path, 'promises.json')
   const contentsBefore = fs.readFileSync(file, 'utf-8')
   assert.strictEqual(contentsBefore, JSON.stringify([[token, promise]]))
 
+  assert.equal(local.set.has('follow', 'FRIEND_ID'), false, 'not following')
+
   const result1 = await p(local.promise.follow)(token, 'FRIEND_ID')
   assert.strictEqual(result1, true)
+
+  assert.equal(local.set.has('follow', 'FRIEND_ID'), true, 'following')
 
   const contentsAfter = fs.readFileSync(file, 'utf-8')
   assert.strictEqual(contentsAfter, '[]')
@@ -132,7 +146,11 @@ test('accountAdd()', async (t) => {
 test('revoke()', async (t) => {
   const { local, path } = await setup()
 
-  const promise = { type: 'follow' }
+  const account = await p(local.db.account.findOrCreate)({
+    subdomain: 'account',
+  })
+
+  const promise = { type: 'follow', account }
   const token = await p(local.promise.create)(promise)
 
   const file = Path.join(path, 'promises.json')

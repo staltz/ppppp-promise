@@ -6,10 +6,10 @@
     "noEmit": true,
     "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true,
-    "lib": ["es2021", "dom"],
+    "lib": ["es2022", "dom"],
     "module": "node16",
     "skipLibCheck": true,
     "strict": true,
-    "target": "es2021"
+    "target": "es2022"
   }
 }
