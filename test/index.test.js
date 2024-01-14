@@ -15,7 +15,7 @@ async function setup() {
   rimraf.sync(path)
   const keypair = Keypair.generate('ed25519', 'alice')
 
-  const local = require('secret-stack/bare')()
+  const peer = require('secret-stack/bare')()
     .use(require('secret-stack/plugins/net'))
     .use(require('secret-handshake-ext/secret-stack'))
     .use(require('ppppp-db'))
@@ -29,20 +29,20 @@ async function setup() {
       },
     })
 
-  await local.db.loaded()
+  await peer.db.loaded()
 
-  return { local, path, keypair }
+  return { peer, path, keypair }
 }
 
 test('create()', async (t) => {
-  const { local, path } = await setup()
+  const { peer, path } = await setup()
 
-  const account = await p(local.db.account.findOrCreate)({
+  const account = await p(peer.db.account.findOrCreate)({
     subdomain: 'account',
   })
 
   const promise = { type: 'follow', account }
-  const token = await p(local.promise.create)(promise)
+  const token = await p(peer.promise.create)(promise)
   assert.strictEqual(typeof token, 'string')
   assert.ok(token.length > 42)
 
@@ -51,58 +51,58 @@ test('create()', async (t) => {
   const contents = fs.readFileSync(file, 'utf-8')
   assert.strictEqual(contents, JSON.stringify([[token, promise]]))
 
-  await p(local.close)()
+  await p(peer.close)()
 })
 
 test('follow()', async (t) => {
-  const { local, path } = await setup()
+  const { peer, path } = await setup()
 
-  assert.rejects(() => p(local.promise.follow)('randomnottoken', 'FRIEND_ID'))
+  assert.rejects(() => p(peer.promise.follow)('randomnottoken', 'FRIEND_ID'))
 
-  const account = await p(local.db.account.findOrCreate)({
+  const account = await p(peer.db.account.findOrCreate)({
     subdomain: 'account',
   })
-  await p(local.set.load)(account)
+  await p(peer.set.load)(account)
 
   const promise = { type: 'follow', account }
-  const token = await p(local.promise.create)(promise)
+  const token = await p(peer.promise.create)(promise)
 
   const file = Path.join(path, 'promises.json')
   const contentsBefore = fs.readFileSync(file, 'utf-8')
   assert.strictEqual(contentsBefore, JSON.stringify([[token, promise]]))
 
-  assert.equal(local.set.has('follow', 'FRIEND_ID'), false, 'not following')
+  assert.equal(peer.set.has('follows', 'FRIEND_ID'), false, 'not following')
 
-  const result1 = await p(local.promise.follow)(token, 'FRIEND_ID')
+  const result1 = await p(peer.promise.follow)(token, 'FRIEND_ID')
   assert.strictEqual(result1, true)
 
-  assert.equal(local.set.has('follow', 'FRIEND_ID'), true, 'following')
+  assert.equal(peer.set.has('follows', 'FRIEND_ID'), true, 'following')
 
   const contentsAfter = fs.readFileSync(file, 'utf-8')
   assert.strictEqual(contentsAfter, '[]')
 
-  assert.rejects(() => p(local.promise.follow)(token, 'FRIEND_ID'))
+  assert.rejects(() => p(peer.promise.follow)(token, 'FRIEND_ID'))
 
-  await p(local.close)()
+  await p(peer.close)()
 })
 
 test('accountAdd()', async (t) => {
-  const { local, path, keypair } = await setup()
+  const { peer, path, keypair } = await setup()
 
-  assert.rejects(() => p(local.promise.accountAdd)('randomnottoken', {}))
+  assert.rejects(() => p(peer.promise.accountAdd)('randomnottoken', {}))
 
-  const account = await p(local.db.account.findOrCreate)({
+  const account = await p(peer.db.account.findOrCreate)({
     subdomain: 'account',
   })
 
   const promise = { type: 'account-add', account }
-  const token = await p(local.promise.create)(promise)
+  const token = await p(peer.promise.create)(promise)
 
   const file = Path.join(path, 'promises.json')
   const contentsBefore = fs.readFileSync(file, 'utf-8')
   assert.strictEqual(contentsBefore, JSON.stringify([[token, promise]]))
 
-  const dbBefore = [...local.db.msgs()].map(({ data }) => data)
+  const dbBefore = [...peer.db.msgs()].map(({ data }) => data)
   assert.equal(dbBefore.length, 1)
   assert.equal(dbBefore[0].action, 'add')
   assert.equal(dbBefore[0].key.algorithm, 'ed25519')
@@ -111,8 +111,8 @@ test('accountAdd()', async (t) => {
   assert(dbBefore[0].nonce)
 
   const keypair2 = Keypair.generate('ed25519', 'bob')
-  const consent = local.db.account.consent({ account, keypair: keypair2 })
-  const result1 = await p(local.promise.accountAdd)(token, {
+  const consent = peer.db.account.consent({ account, keypair: keypair2 })
+  const result1 = await p(peer.promise.accountAdd)(token, {
     key: {
       purpose: 'sig',
       algorithm: 'ed25519',
@@ -122,7 +122,7 @@ test('accountAdd()', async (t) => {
   })
   assert.strictEqual(result1, true)
 
-  const dbAfter = [...local.db.msgs()].map(({ data }) => data)
+  const dbAfter = [...peer.db.msgs()].map(({ data }) => data)
   assert.equal(dbAfter.length, 2)
   assert.equal(dbAfter[0].action, 'add')
   assert.equal(dbAfter[0].key.algorithm, 'ed25519')
@@ -138,29 +138,29 @@ test('accountAdd()', async (t) => {
   const contentsAfter = fs.readFileSync(file, 'utf-8')
   assert.strictEqual(contentsAfter, '[]')
 
-  assert.rejects(() => p(local.promise.accountAdd)(token, {}))
+  assert.rejects(() => p(peer.promise.accountAdd)(token, {}))
 
-  await p(local.close)()
+  await p(peer.close)()
 })
 
 test('revoke()', async (t) => {
-  const { local, path } = await setup()
+  const { peer, path } = await setup()
 
-  const account = await p(local.db.account.findOrCreate)({
+  const account = await p(peer.db.account.findOrCreate)({
     subdomain: 'account',
   })
 
   const promise = { type: 'follow', account }
-  const token = await p(local.promise.create)(promise)
+  const token = await p(peer.promise.create)(promise)
 
   const file = Path.join(path, 'promises.json')
   const contentsBefore = fs.readFileSync(file, 'utf-8')
   assert.strictEqual(contentsBefore, JSON.stringify([[token, promise]]))
 
-  await p(local.promise.revoke)(token)
+  await p(peer.promise.revoke)(token)
 
   const contentsAfter = fs.readFileSync(file, 'utf-8')
   assert.strictEqual(contentsAfter, '[]')
 
-  await p(local.close)()
+  await p(peer.close)()
 })
